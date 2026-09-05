@@ -6,6 +6,7 @@ import { encodeObservation } from "../src/ai/douzero-encoding";
 import { choosePlay, createAiView } from "../src/ai/strategy";
 import { createNewSave, passTurn, playCards } from "../src/core/game";
 import { sortCards } from "../src/core/cards";
+import { generateLegalPlays } from "../src/core/plays";
 import { seededRandom } from "../tests/helpers";
 
 env.wasm.numThreads = 1;
@@ -92,8 +93,58 @@ async function benchmark() {
   console.log(JSON.stringify({ ...summary, results: undefined }, null, 2));
 }
 
+async function auditPasses() {
+  const games = Number(process.argv[3] ?? 120);
+  const seedBase = Number(process.argv[4] ?? 261005);
+  const suspicious: unknown[] = [];
+  let passesWithLegal = 0;
+  let passesAgainstLandlord = 0;
+  let zeroPlayFarmerLosses = 0;
+  for (let game = 0; game < games; game++) {
+    const seed = seedBase + game;
+    let data = deal(seed);
+    const records: unknown[] = [];
+    let actions = 0;
+    while (data.round.phase === "playing" && actions++ < 500) {
+      const index = data.round.currentPlayerIndex;
+      const view = createAiView(data.round, index);
+      const legal = generateLegalPlays(view.hand, view.lastPlay?.pattern ?? null);
+      const decision = await agent.choose(view);
+      if (decision.kind === "pass" && legal.length > 0) {
+        passesWithLegal++;
+        if (view.lastPlayBy === view.landlordIndex) passesAgainstLandlord++;
+        records.push({ action: actions, seat: index, lastPlayBy: view.lastPlayBy,
+          landlordRemaining: view.remainingCardCounts[view.landlordIndex!],
+          counts: view.remainingCardCounts, hand: view.hand.map(card => card.rank),
+          target: view.lastPlay?.pattern, legal: legal.map(play => play.pattern) });
+      }
+      data = decision.kind === "play"
+        ? playCards(data, index, decision.cards!)
+        : passTurn(data, index);
+    }
+    assert.equal(data.round.phase, "finished");
+    const silentLosers = data.round.players
+      .map((player, seat) => ({ player, seat }))
+      .filter(({ player, seat }) => seat !== data.round.landlordIndex && player.playedHands === 0);
+    if (data.round.winnerTeam === "landlord" && silentLosers.length > 0) {
+      zeroPlayFarmerLosses += silentLosers.length;
+      suspicious.push({ seed, landlord: data.round.landlordIndex,
+        silentSeats: silentLosers.map(item => item.seat), records });
+    }
+  }
+  const summary = { games, seedBase, passesWithLegal, passesAgainstLandlord,
+    zeroPlayFarmerLosses, suspicious };
+  await writeFile(".ai-reference/pass-audit.json", JSON.stringify(summary, null, 2) + "\n");
+  console.log(JSON.stringify({ games, seedBase, passesWithLegal, passesAgainstLandlord,
+    zeroPlayFarmerLosses, suspiciousGames: suspicious.length }, null, 2));
+}
+
 async function main() {
-  try { if (process.argv[2] === "cases") await cases(); else await benchmark(); }
+  try {
+    if (process.argv[2] === "cases") await cases();
+    else if (process.argv[2] === "audit") await auditPasses();
+    else await benchmark();
+  }
   finally { await agent.dispose(); }
 }
 void main().catch(error => { console.error(error); process.exitCode = 1; });

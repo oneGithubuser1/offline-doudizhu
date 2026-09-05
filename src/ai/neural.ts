@@ -1,6 +1,6 @@
 import { InferenceSession, Tensor } from "onnxruntime-web";
 import { encodeObservation, type ModelSeat } from "./douzero-encoding";
-import { chooseCriticalDefense, type AiDecision, type AiView } from "./strategy";
+import { chooseModelOverride, type AiDecision, type AiView } from "./strategy";
 
 export type ModelLoader = (seat: ModelSeat) => Promise<Uint8Array>;
 
@@ -21,8 +21,8 @@ export function createNeuralAgent(loadModel: ModelLoader) {
 
   return {
     async choose(view: AiView): Promise<AiDecision> {
-      const criticalDefense = chooseCriticalDefense(view);
-      if (criticalDefense) return criticalDefense;
+      const tacticalOverride = chooseModelOverride(view);
+      if (tacticalOverride) return tacticalOverride;
       const obs = encodeObservation(view);
       const finish = obs.actions.find(cards => cards.length === view.hand.length);
       if (finish) return { kind: "play", cards: finish };

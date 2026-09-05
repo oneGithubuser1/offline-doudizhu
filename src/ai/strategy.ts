@@ -491,6 +491,18 @@ export function chooseCriticalDefense(view: AiView): AiDecision | null {
     return guardedLead ? { kind: "play", cards: guardedLead.cards } : null;
   }
 
+  // Once a nearly-out landlord has played, declining a legal response can
+  // hand the trick straight back and let the final card(s) go uncontested.
+  // Take the trick with the strongest matching shape, or a bomb if necessary.
+  if (view.lastPlayBy === view.landlordIndex && legal.length > 0) {
+    const matching = legal.filter(play => play.pattern.type === view.lastPlay!.pattern.type);
+    const guards = matching.length > 0 ? matching : legal.filter(isBomb);
+    if (guards.length > 0) {
+      const guard = highestMainRank(guards);
+      return { kind: "play", cards: guard.cards };
+    }
+  }
+
   const landlordIsNext = (view.ownIndex + 1) % 3 === view.landlordIndex;
   const teammateLed = isTeammate(view, view.lastPlayBy);
   const dangerousHandoff =
@@ -502,6 +514,13 @@ export function chooseCriticalDefense(view: AiView): AiDecision | null {
   const matching = legal.filter(play => play.pattern.type === view.lastPlay!.pattern.type);
   const guard = matching.length > 0 ? highestMainRank(matching) : legal.find(isBomb);
   return guard ? { kind: "play", cards: guard.cards } : { kind: "pass" };
+}
+
+export function chooseModelOverride(view: AiView): AiDecision | null {
+  const criticalDefense = chooseCriticalDefense(view);
+  if (criticalDefense) return criticalDefense;
+  const legal = generateLegalPlays(view.hand, view.lastPlay?.pattern ?? null);
+  return gatekeeperDecision(view, legal);
 }
 
 function chooseHeuristicPlay(view: AiView, random: () => number): AiDecision {

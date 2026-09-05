@@ -57,4 +57,59 @@ describe("DouZero 离线模型", () => {
     expect(modelLoads).toBe(0);
     await guardedAgent.dispose();
   });
+
+  it("地主只剩一张且刚出牌时，有牌能压的农民必须抢回牌权", async () => {
+    let modelLoads = 0;
+    const guardedAgent = createNeuralAgent(async () => {
+      modelLoads++;
+      throw new Error("残局硬防守不应进入模型");
+    });
+    const hand = cards("345A2");
+    const landlordPlay = cards("K");
+    const view: AiView = {
+      ownIndex: 1,
+      ownRole: "farmer",
+      hand,
+      highestBid: 1,
+      landlordIndex: 0,
+      lastPlay: { cards: landlordPlay, pattern: { type: "single", mainRank: 13, cardCount: 1, sequenceLength: 1 } },
+      lastPlayBy: 0,
+      remainingCardCounts: [1, hand.length, 6],
+      playedCards: landlordPlay,
+    };
+
+    const decision = await guardedAgent.choose(view);
+    expect(decision.kind).toBe("play");
+    expect(decision.cards).toHaveLength(1);
+    expect(decision.cards?.[0].rank).toBe(15);
+    expect(modelLoads).toBe(0);
+    await guardedAgent.dispose();
+  });
+
+  it("地主上家会在最后一道关口压住地主的小牌，不会整局机械放行", async () => {
+    let modelLoads = 0;
+    const guardedAgent = createNeuralAgent(async () => {
+      modelLoads++;
+      throw new Error("守门定式不应进入模型");
+    });
+    const hand = cards("456TQA2");
+    const landlordPlay = cards("3");
+    const view: AiView = {
+      ownIndex: 0,
+      ownRole: "farmer",
+      hand,
+      highestBid: 1,
+      landlordIndex: 1,
+      lastPlay: { cards: landlordPlay, pattern: { type: "single", mainRank: 3, cardCount: 1, sequenceLength: 1 } },
+      lastPlayBy: 1,
+      remainingCardCounts: [hand.length, 8, 9],
+      playedCards: landlordPlay,
+    };
+
+    const decision = await guardedAgent.choose(view);
+    expect(decision.kind).toBe("play");
+    expect(decision.cards?.[0].rank).toBe(14);
+    expect(modelLoads).toBe(0);
+    await guardedAgent.dispose();
+  });
 });
