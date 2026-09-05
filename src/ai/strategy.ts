@@ -473,6 +473,37 @@ function publicUnbeatable(play: LegalPlay, view: AiView): boolean {
   return count > 0 && ![...groups].some(([rank, cards]) => rank > play.pattern.mainRank && cards.length >= count);
 }
 
+// Some end-of-hand conventions are too important to leave to a statistical
+// model. In particular, leading a pair into a landlord who has reported two
+// cards can lose the game immediately. Keep these guards deterministic for
+// both the neural agent and the rule fallback.
+export function chooseCriticalDefense(view: AiView): AiDecision | null {
+  if (view.ownRole !== "farmer" || view.landlordIndex === null) return null;
+  const landlordCards = view.remainingCardCounts[view.landlordIndex];
+  if (landlordCards < 1 || landlordCards > 2) return null;
+
+  const legal = generateLegalPlays(view.hand, view.lastPlay?.pattern ?? null);
+  const finishing = legal.find(play => play.cards.length === view.hand.length);
+  if (finishing) return { kind: "play", cards: finishing.cards };
+
+  if (view.lastPlay === null) {
+    const guardedLead = tacticalLead(view, legal);
+    return guardedLead ? { kind: "play", cards: guardedLead.cards } : null;
+  }
+
+  const landlordIsNext = (view.ownIndex + 1) % 3 === view.landlordIndex;
+  const teammateLed = isTeammate(view, view.lastPlayBy);
+  const dangerousHandoff =
+    (landlordCards === 1 && view.lastPlay.pattern.type === "single") ||
+    (landlordCards === 2 && view.lastPlay.pattern.type === "pair");
+  if (!landlordIsNext || !teammateLed || !dangerousHandoff) return null;
+  if (publicUnbeatable(view.lastPlay, view)) return { kind: "pass" };
+
+  const matching = legal.filter(play => play.pattern.type === view.lastPlay!.pattern.type);
+  const guard = matching.length > 0 ? highestMainRank(matching) : legal.find(isBomb);
+  return guard ? { kind: "play", cards: guard.cards } : { kind: "pass" };
+}
+
 function chooseHeuristicPlay(view: AiView, random: () => number): AiDecision {
   const legal = generateLegalPlays(view.hand, view.lastPlay?.pattern ?? null);
   if (legal.length === 0) return { kind: "pass" };
@@ -535,6 +566,8 @@ function chooseHeuristicPlay(view: AiView, random: () => number): AiDecision {
 }
 
 export function choosePlay(view: AiView, random = Math.random): AiDecision {
+  const criticalDefense = chooseCriticalDefense(view);
+  if (criticalDefense) return criticalDefense;
   const fallback = chooseHeuristicPlay(view, random);
   if (fallback.cards?.length === view.hand.length) return fallback;
   return chooseEndgame(view, fallback) ?? fallback;

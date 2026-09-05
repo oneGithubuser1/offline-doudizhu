@@ -389,7 +389,7 @@ function App() {
           <span className="brand-seal">斗</span>
           <div>
             <h1>斗地主</h1>
-            <small>闲 来 一 局 · v0.6.0</small>
+            <small>闲 来 一 局 · v0.6.1</small>
           </div>
         </div>
         <div className="round-summary">

@@ -4,6 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { createNeuralAgent } from "../src/ai/neural";
 import type { AiView } from "../src/ai/strategy";
 import type { Card } from "../src/core/cards";
+import { cards } from "./helpers";
 
 interface Fixture { view: AiView; bestAction: Card[] }
 
@@ -30,4 +31,30 @@ describe("DouZero 离线模型", () => {
         .toEqual(fixture.bestAction.map(card => card.rank).sort((a, b) => a - b));
     }
   }, 15_000);
+
+  it("地主报双时由硬防守接管，不让模型领对子送走地主", async () => {
+    let modelLoads = 0;
+    const guardedAgent = createNeuralAgent(async () => {
+      modelLoads++;
+      throw new Error("报双防守不应进入模型");
+    });
+    const hand = cards("3345");
+    const view: AiView = {
+      ownIndex: 0,
+      ownRole: "farmer",
+      hand,
+      highestBid: 1,
+      landlordIndex: 1,
+      lastPlay: null,
+      lastPlayBy: null,
+      remainingCardCounts: [hand.length, 2, 8],
+      playedCards: [],
+    };
+
+    const decision = await guardedAgent.choose(view);
+    expect(decision.cards).toHaveLength(1);
+    expect(decision.cards?.[0].rank).toBe(5);
+    expect(modelLoads).toBe(0);
+    await guardedAgent.dispose();
+  });
 });
