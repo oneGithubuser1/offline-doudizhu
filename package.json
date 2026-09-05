@@ -1,0 +1,65 @@
+{
+  "name": "riverlab-doudizhu",
+  "version": "0.5.2",
+  "private": true,
+  "description": "适合长辈离线游玩的单机斗地主",
+  "author": "RiverLab",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k -s first \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && electron .\"",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dist": "npm run test && npm run build && electron-builder --win --x64",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.0.12",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.4",
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.4"
+  },
+  "build": {
+    "appId": "cn.riverlab.doudizhu",
+    "productName": "欢乐斗地主单机版",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "斗地主-${version}-${arch}-安装版.${ext}",
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "欢乐斗地主单机版",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "斗地主-${version}-${arch}-便携版.${ext}"
+    }
+  }
+}
