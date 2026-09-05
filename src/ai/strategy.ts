@@ -16,6 +16,7 @@ export interface AiView {
   playedCards: Card[];
   publicBottomCards?: Card[];
   passCount?: number;
+  publicHistory?: Array<{ playerIndex: number; cards: Card[] }>;
 }
 
 export interface AiDecision {
@@ -55,6 +56,9 @@ export function createAiView(round: RoundState, ownIndex: number): AiView {
     playedCards: [...round.playedCards],
     publicBottomCards: round.bottomRevealed ? [...round.bottomCards] : [],
     passCount: round.passCount,
+    publicHistory: (round.actionHistory ?? [])
+      .filter(record => record.action.kind === "play" || record.action.kind === "pass")
+      .map(record => ({ playerIndex: record.playerIndex, cards: [...(record.action.cards ?? [])] })),
   };
 }
 

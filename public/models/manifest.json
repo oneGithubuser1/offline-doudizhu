@@ -1,0 +1,25 @@
+{
+  "model": "DouZero ADP",
+  "format": "ONNX float32",
+  "sourceCommit": "594404922ee3810e2d84b80bb2c2846cb20e5390",
+  "models": {
+    "landlord": {
+      "sourceSha256": "6f2971813495e9c509cbd4a101213c49587472942fa0f018d04c139a6a647c2d",
+      "sha256": "d5c488038c5c109bb7b5b9daca73212b44184a6c0b7c2b458edb80b747f3d982",
+      "bytes": 5836601,
+      "maxParityError": 0.03125
+    },
+    "landlord_up": {
+      "sourceSha256": "7fb7c495ff095db2ddadd8f9f8fd53cad840211578dabc83bbcc8d75085f843e",
+      "sha256": "58bf530c0d5e1cb1be9be23e112f3028df1ca509f38b3af8dec6046f8b6de04d",
+      "bytes": 6063929,
+      "maxParityError": 0.0205078125
+    },
+    "landlord_down": {
+      "sourceSha256": "c173dbe30258f19b6392c30ab1e330b6b3090bbd9ccdc89a9b18123a6ab6e2d9",
+      "sha256": "3136bac41a3bbb7740e031dccd5a826146a21113b62eebba010e401c2cbdc43b",
+      "bytes": 6063929,
+      "maxParityError": 0.0244140625
+    }
+  }
+}

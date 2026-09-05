@@ -5,3 +5,4 @@ release-*/
 coverage/
 *.log
 .vite/
+.ai-reference/

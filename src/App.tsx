@@ -1,5 +1,6 @@
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { chooseBid, chooseHint, choosePlay, createAiView } from "./ai/strategy";
+import { AiWorkerClient } from "./ai/worker-client";
 import { playImpactSound, setBgmEnabled, setMusicVolume, unlockBgm } from "./audio/bgm";
 import {
   announcePlay,
@@ -55,8 +56,15 @@ function App() {
   const [showStats, setShowStats] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [reviewing, setReviewing] = useState(false);
+  const [hintPending, setHintPending] = useState(false);
+  const [aiFallback, setAiFallback] = useState(false);
+  const [aiClient] = useState(() => new AiWorkerClient());
+  const latestRound = useRef(data?.round);
+  latestRound.current = data?.round;
   const heardActionSerial = useRef<number | null>(null);
   const heardRoundNumber = useRef<number | null>(null);
+
+  useEffect(() => () => aiClient.dispose(), [aiClient]);
 
   useEffect(() => {
     let active = true;
@@ -210,36 +218,28 @@ function App() {
     if (round.phase === "finished" || (previewScene && previewScene !== "live")) return;
 
     const playerIndex = round.currentPlayerIndex;
-    const worker = new Worker(new URL("./ai/worker.ts", import.meta.url), { type: "module" });
     let active = true;
     const timer = window.setTimeout(() => {
-      worker.postMessage({ phase: round.phase, view: createAiView(round, playerIndex) });
-    }, Math.max(data.settings.aiDelayMs, MIN_AI_DELAY_MS));
-    worker.onmessage = (event) => {
-      if (!active) return;
-      setData((current) => {
-        if (!current || current.round.currentPlayerIndex !== playerIndex) return current;
-        if (current.round.phase === "bidding") {
-          return placeBid(current, playerIndex, event.data.bid);
-        }
-        if (current.round.phase === "playing") {
-          const decision = event.data.decision;
+      const view = createAiView(round, playerIndex);
+      aiClient.request(round.phase, view).catch(() => ({
+        id: 0, engine: "rules" as const,
+        bid: round.phase === "bidding" ? chooseBid(view.hand, view.highestBid) : undefined,
+        decision: round.phase === "playing" ? choosePlay(view) : undefined,
+      })).then(reply => {
+        if (!active) return;
+        if (round.phase === "playing") setAiFallback(reply.engine !== "douzero");
+        setData(current => {
+          if (!current || current.round !== round) return current;
+          if (round.phase === "bidding") return placeBid(current, playerIndex, reply.bid ?? 0);
+          const decision = reply.decision ?? choosePlay(view);
           return decision.kind === "play" && decision.cards
             ? playCards(current, playerIndex, decision.cards)
             : passTurn(current, playerIndex);
-        }
-        return current;
+        });
       });
-    };
-    worker.onerror = () => {
-      if (!active) return;
-      // A renderer that cannot start a worker still has a legal local fallback.
-      worker.onmessage?.call(worker, new MessageEvent("message", { data: round.phase === "bidding"
-        ? { bid: chooseBid(currentPlayer.hand, round.highestBid) }
-        : { decision: choosePlay(createAiView(round, playerIndex)) } }));
-    };
-    return () => { active = false; window.clearTimeout(timer); worker.terminate(); };
-  }, [data, round, currentPlayer]);
+    }, Math.max(data.settings.aiDelayMs, MIN_AI_DELAY_MS));
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [round, data?.settings.aiDelayMs, aiClient]);
 
   const selectedCards = useMemo(() => {
     if (!round) return [];
@@ -283,9 +283,24 @@ function App() {
     setNotice("");
   };
 
-  const requestHint = () => {
-    if (!canOperate) return;
-    const cards = chooseHint(createAiView(round, HUMAN_INDEX));
+  const requestHint = async () => {
+    if (!canOperate || hintPending) return;
+    const view = createAiView(round, HUMAN_INDEX);
+    // A hint never passes for strategic reasons: only when no legal reply exists.
+    const fallbackCards = chooseHint(view);
+    if (fallbackCards.length === 0 && round.lastPlay) {
+      setSelectedIds(new Set());
+      setData(passTurn(data, HUMAN_INDEX));
+      return;
+    }
+    setHintPending(true);
+    let cards = fallbackCards;
+    try {
+      const reply = await aiClient.request("playing", view);
+      if (reply.decision?.kind === "play" && reply.decision.cards?.length) cards = reply.decision.cards;
+    } catch { /* A valid rule hint remains available if model loading fails. */ }
+    finally { setHintPending(false); }
+    if (latestRound.current !== round) return;
     if (cards.length === 0) {
       setSelectedIds(new Set());
       if (round.lastPlay) {
@@ -374,7 +389,7 @@ function App() {
           <span className="brand-seal">斗</span>
           <div>
             <h1>斗地主</h1>
-            <small>闲 来 一 局</small>
+            <small>闲 来 一 局 · v0.6.0</small>
           </div>
         </div>
         <div className="round-summary">
@@ -498,7 +513,7 @@ function App() {
             )}
             {round.phase === "playing" && humanTurn && (
               <>
-                <button type="button" className="secondary" onClick={requestHint}>提示</button>
+                <button type="button" className="secondary" disabled={hintPending} onClick={requestHint}>{hintPending ? "思考中…" : "提示"}</button>
                 <button type="button" className="secondary" disabled={!round.lastPlay} onClick={() => { setNotice(""); setData(passTurn(data, HUMAN_INDEX)); }}>不出</button>
                 <button type="button" className="primary" onClick={submitCards}>出牌</button>
               </>
@@ -539,7 +554,7 @@ function App() {
           <span>{data.settings.sound ? "午后小调" : "音乐已关"}</span>
           <input type="range" min="0" max="100" value={Math.round((data.settings.musicVolume ?? 0.45) * 100)} aria-label="音乐音量" onChange={(event) => setData(updateSettings(data, { musicVolume: Number(event.target.value) / 100 }))} />
         </div>
-        <span className="save-status"><i />积分自动保存 · 离线畅玩</span>
+        <span className="save-status"><i />{aiFallback ? "增强 AI 暂不可用 · 基础 AI 已接管" : "积分自动保存 · 离线畅玩"}</span>
       </footer>
 
       {notice && <div className="notice" onClick={() => setNotice("")}>{notice}</div>}
