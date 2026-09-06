@@ -6,6 +6,6 @@ if not exist node_modules (
   pause
   exit /b 1
 )
-echo 正在启动欢乐斗地主单机版……
+echo 正在启动河畔斗地主……
 npm run dev
 if errorlevel 1 pause

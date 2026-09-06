@@ -70,7 +70,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     backgroundColor: "#0a653f",
-    title: "欢乐斗地主单机版",
+    title: "河畔斗地主",
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
