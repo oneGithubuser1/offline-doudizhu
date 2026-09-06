@@ -5,13 +5,17 @@ import { createNeuralAgent } from "../src/ai/neural";
 import { encodeObservation } from "../src/ai/douzero-encoding";
 import { choosePlay, createAiView } from "../src/ai/strategy";
 import { createNewSave, passTurn, playCards } from "../src/core/game";
-import { sortCards } from "../src/core/cards";
+import { removeCardsFromHand, sortCards } from "../src/core/cards";
 import { generateLegalPlays } from "../src/core/plays";
+import { classifyPlay } from "../src/core/patterns";
 import { seededRandom } from "../tests/helpers";
 
 env.wasm.numThreads = 1;
 env.logLevel = "error";
-const agent = createNeuralAgent(seat => readFile(`public/models/${seat}.onnx`));
+const createFileAgent = (directory: string) => createNeuralAgent(
+  seat => readFile(`${directory}/${seat}.onnx`),
+);
+const agent = createFileAgent(process.argv[5] ?? "public/models");
 
 function deal(seed: number) {
   const data = createNewSave(seededRandom(seed));
@@ -100,6 +104,7 @@ async function auditPasses() {
   let passesWithLegal = 0;
   let passesAgainstLandlord = 0;
   let zeroPlayFarmerLosses = 0;
+  const earlyRockets: unknown[] = [];
   for (let game = 0; game < games; game++) {
     const seed = seedBase + game;
     let data = deal(seed);
@@ -110,6 +115,18 @@ async function auditPasses() {
       const view = createAiView(data.round, index);
       const legal = generateLegalPlays(view.hand, view.lastPlay?.pattern ?? null);
       const decision = await agent.choose(view);
+      if (decision.kind === "play" && classifyPlay(decision.cards!)?.type === "rocket") {
+        const remaining = removeCardsFromHand(view.hand, decision.cards!);
+        const keepsControlToFinish = remaining.length === 0 || generateLegalPlays(remaining, null)
+          .some(play => play.cards.length === remaining.length);
+        const opponentMinimum = Math.min(...view.remainingCardCounts
+          .filter((_, seat) => (seat === view.landlordIndex) !== (view.ownIndex === view.landlordIndex)));
+        if (view.hand.length > 8 && opponentMinimum > 4 && !keepsControlToFinish) {
+          earlyRockets.push({ seed, action: actions, seat: index, handCount: view.hand.length,
+            opponentMinimum, target: view.lastPlay?.pattern ?? null,
+            ordinaryReplies: legal.filter(play => play.pattern.type !== "bomb" && play.pattern.type !== "rocket").length });
+        }
+      }
       if (decision.kind === "pass" && legal.length > 0) {
         passesWithLegal++;
         if (view.lastPlayBy === view.landlordIndex) passesAgainstLandlord++;
@@ -133,16 +150,74 @@ async function auditPasses() {
     }
   }
   const summary = { games, seedBase, passesWithLegal, passesAgainstLandlord,
-    zeroPlayFarmerLosses, suspicious };
+    zeroPlayFarmerLosses, earlyRockets, suspicious };
   await writeFile(".ai-reference/pass-audit.json", JSON.stringify(summary, null, 2) + "\n");
   console.log(JSON.stringify({ games, seedBase, passesWithLegal, passesAgainstLandlord,
-    zeroPlayFarmerLosses, suspiciousGames: suspicious.length }, null, 2));
+    zeroPlayFarmerLosses, suspiciousGames: suspicious.length,
+    earlyRockets: earlyRockets.length, earlyRocketSamples: earlyRockets.slice(0, 8) }, null, 2));
+}
+
+async function compareModels() {
+  const games = Number(process.argv[3] ?? 80);
+  const seedBase = Number(process.argv[4] ?? 262005);
+  const firstDirectory = process.argv[5] ?? "public/models";
+  const secondDirectory = process.argv[6] ?? ".ai-reference/wp-onnx/exported";
+  assert(Number.isInteger(games) && games > 0 && games <= 1000);
+  const first = createFileAgent(firstDirectory);
+  const second = createFileAgent(secondDirectory);
+  const results: Array<{ seed: number; firstLandlord: boolean; firstWon: boolean; actions: number }> = [];
+  const latencies: number[] = [];
+  try {
+    for (let game = 0; game < games; game++) {
+      const seed = seedBase + game;
+      for (const firstLandlord of [true, false]) {
+        let data = deal(seed);
+        let actions = 0;
+        while (data.round.phase === "playing" && actions < 500) {
+          const index = data.round.currentPlayerIndex;
+          const view = createAiView(data.round, index);
+          const useFirst = ((index === data.round.landlordIndex) === firstLandlord);
+          const before = performance.now();
+          const decision = await (useFirst ? first : second).choose(view);
+          latencies.push(performance.now() - before);
+          const next = decision.kind === "play"
+            ? playCards(data, index, decision.cards!)
+            : passTurn(data, index);
+          assert.notEqual(next, data, "AI returned an illegal action");
+          data = next;
+          actions++;
+        }
+        assert.equal(data.round.phase, "finished");
+        const firstWon = (data.round.winnerTeam === "landlord") === firstLandlord;
+        results.push({ seed, firstLandlord, firstWon, actions });
+      }
+      if ((game + 1) % 10 === 0) {
+        console.log(`${game + 1}/${games} paired deals, first model wins ${results.filter(r => r.firstWon).length}/${results.length}`);
+      }
+    }
+    latencies.sort((a, b) => a - b);
+    const summary = {
+      firstDirectory, secondDirectory, seedBase, pairedDeals: games, games: results.length,
+      firstLandlordWins: results.filter(r => r.firstLandlord && r.firstWon).length,
+      firstFarmerWins: results.filter(r => !r.firstLandlord && r.firstWon).length,
+      firstWins: results.filter(r => r.firstWon).length,
+      secondWins: results.filter(r => !r.firstWon).length,
+      medianDecisionMs: latencies[Math.floor(latencies.length / 2)],
+      p95DecisionMs: latencies[Math.floor(latencies.length * .95)],
+      results,
+    };
+    await writeFile(".ai-reference/model-comparison.json", JSON.stringify(summary, null, 2) + "\n");
+    console.log(JSON.stringify({ ...summary, results: undefined }, null, 2));
+  } finally {
+    await Promise.all([first.dispose(), second.dispose()]);
+  }
 }
 
 async function main() {
   try {
     if (process.argv[2] === "cases") await cases();
     else if (process.argv[2] === "audit") await auditPasses();
+    else if (process.argv[2] === "compare") await compareModels();
     else await benchmark();
   }
   finally { await agent.dispose(); }

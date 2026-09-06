@@ -4,6 +4,7 @@ Run node scripts/run-ai-tools.mjs cases first. Reference sources are pinned in
 THIRD_PARTY_NOTICES.md. Produces independent regression fixtures for Vitest.
 """
 import ast
+import argparse
 from collections import Counter
 import hashlib
 import importlib.util
@@ -15,6 +16,9 @@ import onnxruntime as ort
 import torch
 
 ROOT = Path(__file__).resolve().parents[1]
+parser = argparse.ArgumentParser()
+parser.add_argument("--source-dir", type=Path, default=ROOT / ".ai-reference" / "wp-onnx")
+args = parser.parse_args()
 source = (ROOT / ".ai-reference" / "env.py").read_text(encoding="utf-8")
 tree = ast.parse(source)
 # Load only the observation constants/functions, without importing the upstream game.
@@ -64,7 +68,7 @@ for case in json.loads((ROOT / ".ai-reference" / "encoding-cases.json").read_tex
     np.testing.assert_array_equal(z[0].flatten(), np.array(case["z"]))
     if seat not in models:
         model = original.model_dict[seat]()
-        model.load_state_dict(torch.load(ROOT / ".ai-reference" / f"{seat}.ckpt", map_location="cpu", weights_only=True))
+        model.load_state_dict(torch.load(args.source_dir.resolve() / f"{seat}.ckpt", map_location="cpu", weights_only=True))
         models[seat] = model.eval()
         sessions[seat] = ort.InferenceSession(str(ROOT / "public" / "models" / f"{seat}.onnx"), providers=["CPUExecutionProvider"])
     with torch.no_grad():

@@ -1,10 +1,11 @@
-"""Convert the published DouZero ADP weights to offline ONNX and verify parity.
+"""Convert published DouZero weights to offline ONNX and verify parity.
 
 Development only: python -m pip install torch onnx onnxruntime numpy
 Place the three .ckpt files in .ai-reference first (sources in THIRD_PARTY_NOTICES.md).
 Architecture adapted from kwai/DouZero under Apache-2.0; see licenses/.
 """
 from pathlib import Path
+import argparse
 import hashlib
 import json
 import numpy as np
@@ -35,13 +36,25 @@ class ValueNetwork(nn.Module):
         return self.dense6(combined)
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--objective", choices=["ADP", "WP"], default="ADP")
+    parser.add_argument("--source-dir", type=Path, default=ROOT / ".ai-reference")
+    parser.add_argument("--destination", type=Path, default=ROOT / "public" / "models")
+    parser.add_argument("--source-commit", default="594404922ee3810e2d84b80bb2c2846cb20e5390")
+    parser.add_argument("--source-repository", default="Netease-Games-AI-Lab-Guangzhou/PerfectDou")
+    return parser.parse_args()
+
+
 def main():
-    destination = ROOT / "public" / "models"
+    args = parse_args()
+    destination = args.destination.resolve()
     destination.mkdir(parents=True, exist_ok=True)
-    manifest = {"model": "DouZero ADP", "format": "ONNX float32",
-                "sourceCommit": "594404922ee3810e2d84b80bb2c2846cb20e5390", "models": {}}
+    manifest = {"model": f"DouZero {args.objective}", "format": "ONNX float32",
+                "sourceRepository": args.source_repository,
+                "sourceCommit": args.source_commit, "models": {}}
     for seat in ["landlord", "landlord_up", "landlord_down"]:
-        source = ROOT / ".ai-reference" / f"{seat}.ckpt"
+        source = args.source_dir.resolve() / f"{seat}.ckpt"
         width = 373 if seat == "landlord" else 484
         model = ValueNetwork(width)
         model.load_state_dict(torch.load(source, map_location="cpu", weights_only=True), strict=True)

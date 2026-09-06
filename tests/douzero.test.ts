@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
-import { createNeuralAgent } from "../src/ai/neural";
+import { createNeuralAgent, isPrematureRocket } from "../src/ai/neural";
 import type { AiView } from "../src/ai/strategy";
 import type { Card } from "../src/core/cards";
 import { cards } from "./helpers";
@@ -111,5 +111,29 @@ describe("DouZero 离线模型", () => {
     expect(decision.cards?.[0].rank).toBe(14);
     expect(modelLoads).toBe(0);
     await guardedAgent.dispose();
+  });
+
+  it("前中盘不能无收益甩王炸，残局或王炸后能一手走完时可以", () => {
+    const hand = cards("XY3344556677889");
+    const view: AiView = {
+      ownIndex: 0,
+      ownRole: "farmer",
+      hand,
+      highestBid: 1,
+      landlordIndex: 1,
+      lastPlay: null,
+      lastPlayBy: null,
+      remainingCardCounts: [hand.length, 13, 12],
+      playedCards: [],
+    };
+    expect(isPrematureRocket(view, hand.slice(0, 2))).toBe(true);
+
+    view.remainingCardCounts[1] = 4;
+    expect(isPrematureRocket(view, hand.slice(0, 2))).toBe(false);
+
+    const twoHandFinish = cards("XY3456789TJ");
+    view.hand = twoHandFinish;
+    view.remainingCardCounts = [twoHandFinish.length, 13, 12];
+    expect(isPrematureRocket(view, twoHandFinish.slice(0, 2))).toBe(false);
   });
 });

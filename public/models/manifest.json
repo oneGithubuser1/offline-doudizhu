@@ -1,25 +1,26 @@
 {
-  "model": "DouZero ADP",
+  "model": "DouZero WP",
   "format": "ONNX float32",
-  "sourceCommit": "594404922ee3810e2d84b80bb2c2846cb20e5390",
+  "sourceRepository": "palemoky/douzero-baselines",
+  "sourceCommit": "57b3914046c2a0877016b8b8830fd07cf5b0ba08",
   "models": {
     "landlord": {
-      "sourceSha256": "6f2971813495e9c509cbd4a101213c49587472942fa0f018d04c139a6a647c2d",
-      "sha256": "d5c488038c5c109bb7b5b9daca73212b44184a6c0b7c2b458edb80b747f3d982",
+      "sourceSha256": "132e26479fcb69f457ddbf1ad32a7bdc3aa73cde80a28cc91f29a62c6075955a",
+      "sha256": "d972feb14b8f3d8d97a85143331416544cc6baacfd6eeda9d08d909d8c0da3b0",
       "bytes": 5836601,
-      "maxParityError": 0.03125
+      "maxParityError": 1.0251998901367188e-05
     },
     "landlord_up": {
-      "sourceSha256": "7fb7c495ff095db2ddadd8f9f8fd53cad840211578dabc83bbcc8d75085f843e",
-      "sha256": "58bf530c0d5e1cb1be9be23e112f3028df1ca509f38b3af8dec6046f8b6de04d",
+      "sourceSha256": "b849ea518e66f088d635d3a29956da880f7b5ca89fabc5f70fc356c106ca6a15",
+      "sha256": "5335a594422210654b0fd177b8063551a49e91ba0afe91b9f69b48ba6aa85c47",
       "bytes": 6063929,
-      "maxParityError": 0.0205078125
+      "maxParityError": 7.3909759521484375e-06
     },
     "landlord_down": {
-      "sourceSha256": "c173dbe30258f19b6392c30ab1e330b6b3090bbd9ccdc89a9b18123a6ab6e2d9",
-      "sha256": "3136bac41a3bbb7740e031dccd5a826146a21113b62eebba010e401c2cbdc43b",
+      "sourceSha256": "964720faf583f4905662c94aaf73b1a97352b76ae3686fcc949beabbacdd95d1",
+      "sha256": "d0013796a4dd183b98c82ee01d374892967fd82f49b6e00b4f16fbf5ff3fdcf6",
       "bytes": 6063929,
-      "maxParityError": 0.0244140625
+      "maxParityError": 4.649162292480469e-06
     }
   }
 }

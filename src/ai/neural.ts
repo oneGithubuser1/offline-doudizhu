@@ -1,8 +1,24 @@
 import { InferenceSession, Tensor } from "onnxruntime-web";
 import { encodeObservation, type ModelSeat } from "./douzero-encoding";
 import { chooseModelOverride, type AiDecision, type AiView } from "./strategy";
+import { removeCardsFromHand, type Card } from "../core/cards";
+import { classifyPlay } from "../core/patterns";
+import { generateLegalPlays } from "../core/plays";
 
 export type ModelLoader = (seat: ModelSeat) => Promise<Uint8Array>;
+
+export function isPrematureRocket(view: AiView, cards: Card[]): boolean {
+  if (classifyPlay(cards)?.type !== "rocket") return false;
+  const remaining = removeCardsFromHand(view.hand, cards);
+  if (remaining.length === 0 || view.hand.length <= 8) return false;
+  const opponentMinimum = Math.min(...view.remainingCardCounts.filter(
+    (_, seat) => (seat === view.landlordIndex) !== (view.ownIndex === view.landlordIndex),
+  ));
+  if (opponentMinimum <= 4) return false;
+  const keepsControlToFinish = generateLegalPlays(remaining, null)
+    .some(play => play.cards.length === remaining.length);
+  return !keepsControlToFinish;
+}
 
 export function createNeuralAgent(loadModel: ModelLoader) {
   const sessions = new Map<ModelSeat, Promise<InferenceSession>>();
@@ -29,6 +45,10 @@ export function createNeuralAgent(loadModel: ModelLoader) {
       if (obs.actions.length === 1) {
         return obs.actions[0].length ? { kind: "play", cards: obs.actions[0] } : { kind: "pass" };
       }
+      const eligible = new Set(obs.actions
+        .map((cards, index) => ({ cards, index }))
+        .filter(action => !isPrematureRocket(view, action.cards))
+        .map(action => action.index));
       const session = await sessionFor(obs.seat);
       const history = new Tensor("float32", obs.z, [1, 5, 162]);
       let best = -Infinity;
@@ -45,7 +65,7 @@ export function createNeuralAgent(loadModel: ModelLoader) {
               if (values.length !== count) throw new Error("Model returned an unexpected action count");
               for (let i = 0; i < count; i++) {
                 if (!Number.isFinite(values[i])) throw new Error("Model returned a nonfinite score");
-                if (values[i] > best) { best = values[i]; bestIndex = start + i; }
+                if (eligible.has(start + i) && values[i] > best) { best = values[i]; bestIndex = start + i; }
               }
             } finally { Object.values(output).forEach(tensor => tensor.dispose()); }
           } finally { state.dispose(); }
