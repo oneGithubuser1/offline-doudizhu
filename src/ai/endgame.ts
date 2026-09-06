@@ -1,6 +1,7 @@
 import { createDeck, removeCardsFromHand, type Card } from "../core/cards";
 import { canBeat, type PlayPattern } from "../core/patterns";
 import { generateLegalPlays, type LegalPlay } from "../core/plays";
+import { nextPlayerIndex } from "../core/turn";
 import type { AiDecision, AiView } from "./strategy";
 
 interface Position {
@@ -25,13 +26,13 @@ function patternKey(pattern: PlayPattern | null): string {
 function after(position: Position, play: LegalPlay | null): Position {
   if (!play) {
     const clear = position.passes === 1;
-    return { ...position, turn: (position.turn + 1) % 3,
+    return { ...position, turn: nextPlayerIndex(position.turn),
       target: clear ? null : position.target, owner: clear ? null : position.owner,
       passes: clear ? 0 : position.passes + 1 };
   }
   const hands = position.hands.slice();
   hands[position.turn] = removeCardsFromHand(hands[position.turn], play.cards);
-  return { ...position, hands, turn: (position.turn + 1) % 3,
+  return { ...position, hands, turn: nextPlayerIndex(position.turn),
     target: play.pattern, owner: position.turn, passes: 0 };
 }
 

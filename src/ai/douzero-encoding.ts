@@ -3,6 +3,7 @@
 import type { Card } from "../core/cards";
 import { classifyPlay } from "../core/patterns";
 import { generateLegalPlays } from "../core/plays";
+import { nextPlayerIndex, previousPlayerIndex } from "../core/turn";
 import { unseenCards } from "./endgame";
 import type { AiView } from "./strategy";
 
@@ -31,8 +32,8 @@ export function encodeObservation(view: AiView) {
   const landlord = view.landlordIndex;
   const pool = unseenCards(view);
   if (landlord === null || !pool) throw new Error("Incomplete public card information");
-  const down = (landlord + 1) % 3;
-  const up = (landlord + 2) % 3;
+  const down = nextPlayerIndex(landlord);
+  const up = previousPlayerIndex(landlord);
   const seat: ModelSeat = view.ownIndex === landlord ? "landlord" : view.ownIndex === down ? "landlord_down" : "landlord_up";
   const history = view.publicHistory ?? [];
   // Older saves without a complete action log use the rule fallback for this round.

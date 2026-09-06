@@ -2,6 +2,7 @@ import { type Card, groupCardsByRank, removeCardsFromHand } from "../core/cards"
 import { generateLegalPlays, type LegalPlay } from "../core/plays";
 import { type ActivePlay, type PlayerRole, type RoundState } from "../core/game";
 import { classifyPlay } from "../core/patterns";
+import { nextPlayerIndex } from "../core/turn";
 import { chooseEndgame, unseenCards } from "./endgame";
 
 export interface AiView {
@@ -313,7 +314,7 @@ function lowestNaturalSingle(hand: Card[], plays: LegalPlay[]): LegalPlay | null
 }
 
 function tacticalLead(view: AiView, legal: LegalPlay[]): LegalPlay | null {
-  const nextIndex = (view.ownIndex + 1) % 3;
+  const nextIndex = nextPlayerIndex(view.ownIndex);
   const teammateIsNext = isTeammate(view, nextIndex);
   if (teammateIsNext && view.remainingCardCounts[nextIndex] === 1) {
     return lowestNaturalSingle(view.hand, legal);
@@ -357,7 +358,7 @@ type TablePosition = "landlord" | "landlord_up" | "landlord_down" | "unknown";
 function tablePosition(view: AiView): TablePosition {
   if (view.landlordIndex === null) return "unknown";
   if (view.ownIndex === view.landlordIndex) return "landlord";
-  if (view.ownIndex === (view.landlordIndex + 1) % 3) return "landlord_down";
+  if (view.ownIndex === nextPlayerIndex(view.landlordIndex)) return "landlord_down";
   return "landlord_up";
 }
 
@@ -436,7 +437,7 @@ function responseScore(play: LegalPlay, view: AiView, memo: Map<string, number>)
     score -= danger ? 4 : 35;
   }
 
-  const nextIndex = (view.ownIndex + 1) % 3;
+  const nextIndex = nextPlayerIndex(view.ownIndex);
   if (danger && isOpponent(view, nextIndex) && view.remainingCardCounts[nextIndex] === 1) {
     score += play.pattern.type === "single" ? play.pattern.mainRank * 9 : 70;
   }
@@ -503,7 +504,7 @@ export function chooseCriticalDefense(view: AiView): AiDecision | null {
     }
   }
 
-  const landlordIsNext = (view.ownIndex + 1) % 3 === view.landlordIndex;
+  const landlordIsNext = nextPlayerIndex(view.ownIndex) === view.landlordIndex;
   const teammateLed = isTeammate(view, view.lastPlayBy);
   const dangerousHandoff =
     (landlordCards === 1 && view.lastPlay.pattern.type === "single") ||
@@ -539,7 +540,7 @@ function chooseHeuristicPlay(view: AiView, random: () => number): AiDecision {
     if (control) return { kind: "play", cards: control.cards };
   }
 
-  const nextIndex = (view.ownIndex + 1) % 3;
+  const nextIndex = nextPlayerIndex(view.ownIndex);
   const imminent = view.lastPlay && isOpponent(view, nextIndex) &&
     ((view.remainingCardCounts[nextIndex] === 1 && view.lastPlay.pattern.type === "single") ||
       (view.remainingCardCounts[nextIndex] === 2 && view.lastPlay.pattern.type === "pair"));

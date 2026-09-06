@@ -16,6 +16,7 @@ import {
   createNewSave,
   createRound,
   isSaveData,
+  migrateTurnDirection,
   passTurn,
   placeBid,
   playCards,
@@ -74,17 +75,18 @@ function App() {
       .then((saved) => {
         if (!active) return;
         const loaded = isSaveData(saved) ? saved : createNewSave();
+        const migration = migrateTurnDirection(loaded);
         setData({
-          ...loaded,
+          ...migration.data,
           settings: {
-            ...loaded.settings,
-            sound: loaded.settings.sound !== false,
-            voice: loaded.settings.voice !== false,
+            ...migration.data.settings,
+            sound: migration.data.settings.sound !== false,
+            voice: migration.data.settings.voice !== false,
             largeCards: false,
-            aiDelayMs: Math.max(loaded.settings.aiDelayMs || 0, MIN_AI_DELAY_MS),
+            aiDelayMs: Math.max(migration.data.settings.aiDelayMs || 0, MIN_AI_DELAY_MS),
           },
         });
-        setNotice("");
+        setNotice(migration.migrated ? "出牌顺序已改为逆时针，本局已重新发牌；累计积分不受影响" : "");
       })
       .catch(() => {
         if (!active) return;
@@ -389,7 +391,7 @@ function App() {
           <span className="brand-seal">斗</span>
           <div>
             <h1>河畔斗地主</h1>
-            <small>闲 来 一 局 · v0.6.4</small>
+            <small>闲 来 一 局 · v0.6.5</small>
           </div>
         </div>
         <div className="round-summary">

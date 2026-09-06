@@ -21,8 +21,8 @@ describe("DouZero 离线模型", () => {
         const landlord = fixture.view.landlordIndex!;
         const index = fixture.view.ownIndex;
         return seat === "landlord" ? index === landlord
-          : seat === "landlord_down" ? index === (landlord + 1) % 3
-          : index === (landlord + 2) % 3;
+          : seat === "landlord_down" ? index === (landlord + 2) % 3
+          : index === (landlord + 1) % 3;
       })!,
     );
     for (const fixture of representatives) {
@@ -67,14 +67,14 @@ describe("DouZero 离线模型", () => {
     const hand = cards("345A2");
     const landlordPlay = cards("K");
     const view: AiView = {
-      ownIndex: 1,
+      ownIndex: 2,
       ownRole: "farmer",
       hand,
       highestBid: 1,
       landlordIndex: 0,
       lastPlay: { cards: landlordPlay, pattern: { type: "single", mainRank: 13, cardCount: 1, sequenceLength: 1 } },
       lastPlayBy: 0,
-      remainingCardCounts: [1, hand.length, 6],
+      remainingCardCounts: [1, 6, hand.length],
       playedCards: landlordPlay,
     };
 
@@ -99,10 +99,10 @@ describe("DouZero 离线模型", () => {
       ownRole: "farmer",
       hand,
       highestBid: 1,
-      landlordIndex: 1,
+      landlordIndex: 2,
       lastPlay: { cards: landlordPlay, pattern: { type: "single", mainRank: 3, cardCount: 1, sequenceLength: 1 } },
-      lastPlayBy: 1,
-      remainingCardCounts: [hand.length, 8, 9],
+      lastPlayBy: 2,
+      remainingCardCounts: [hand.length, 9, 8],
       playedCards: landlordPlay,
     };
 

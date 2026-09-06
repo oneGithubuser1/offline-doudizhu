@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createNewSave,
+  migrateTurnDirection,
   passTurn,
   placeBid,
   playCards,
@@ -41,6 +42,20 @@ describe("发牌与叫分", () => {
     expect(data.round.bidHistory).toHaveLength(0);
     expect(data.round.players[0].hand.map((card) => card.id).join(",")).not.toBe(originalIds);
   });
+
+  it("旧顺时针存档保留积分和设置，只重新开始当前牌局", () => {
+    const legacy = createNewSave(seededRandom(12));
+    legacy.profiles[0].score = 37;
+    legacy.settings.cardCounter = true;
+    delete (legacy.round as Partial<typeof legacy.round>).turnDirection;
+
+    const migration = migrateTurnDirection(legacy, seededRandom(13));
+    expect(migration.migrated).toBe(true);
+    expect(migration.data.profiles[0].score).toBe(37);
+    expect(migration.data.settings.cardCounter).toBe(true);
+    expect(migration.data.round.turnDirection).toBe("counterclockwise");
+    expect(migration.data.round.bidHistory).toHaveLength(0);
+  });
 });
 
 describe("出牌与结算", () => {
@@ -79,8 +94,10 @@ describe("出牌与结算", () => {
     data.round.players[2].hand = cards("6");
 
     let next = playCards(data, 0, [data.round.players[0].hand[0]]);
-    next = passTurn(next, 1);
+    expect(next.round.currentPlayerIndex).toBe(2);
     next = passTurn(next, 2);
+    expect(next.round.currentPlayerIndex).toBe(1);
+    next = passTurn(next, 1);
     expect(next.round.currentPlayerIndex).toBe(0);
     expect(next.round.lastPlay).toBeNull();
   });
@@ -98,13 +115,13 @@ describe("出牌与结算", () => {
     data.round.players[2].hand = cards("89");
 
     let next = playCards(data, 0, [data.round.players[0].hand[0]]);
-    next = passTurn(next, 1);
-    const firstPassSerial = next.round.lastActions[1]?.serial;
     next = passTurn(next, 2);
-    next = playCards(next, 0, [next.round.players[0].hand[0]]);
+    const firstPassSerial = next.round.lastActions[2]?.serial;
     next = passTurn(next, 1);
-    expect(next.round.lastActions[1]?.text).toBe("不出");
-    expect(next.round.lastActions[1]?.serial).toBeGreaterThan(firstPassSerial ?? 0);
+    next = playCards(next, 0, [next.round.players[0].hand[0]]);
+    next = passTurn(next, 2);
+    expect(next.round.lastActions[2]?.text).toBe("不出");
+    expect(next.round.lastActions[2]?.serial).toBeGreaterThan(firstPassSerial ?? 0);
   });
 
   it("记牌器只扣除自己的牌和已经打出的牌", () => {

@@ -36,7 +36,7 @@ describe("公开信息残局推演", () => {
   });
 
   it("地主已经不出时让队友继续领牌，不能无谓抢队友出牌权", () => {
-    const view = position(["6Q", "4", "A"], 2, "3", 1, 1);
+    const view = position(["6Q", "A", "4"], 1, "3", 2, 1);
     view.publicBottomCards = createDeck().filter(card => card.rank === 14).slice(0, 1);
     const decision = choosePlay(view);
     expect(decision.kind).toBe("pass");

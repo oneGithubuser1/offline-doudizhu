@@ -43,7 +43,7 @@ def ranks(cards):
 for case in json.loads((ROOT / ".ai-reference" / "encoding-cases.json").read_text()):
     view = case["view"]
     landlord = view["landlordIndex"]
-    seats = {landlord: "landlord", (landlord + 1) % 3: "landlord_down", (landlord + 2) % 3: "landlord_up"}
+    seats = {landlord: "landlord", (landlord + 2) % 3: "landlord_down", (landlord + 1) % 3: "landlord_up"}
     seat = seats[view["ownIndex"]]
     played = {s: [] for s in seats.values()}
     last = {s: [] for s in seats.values()}

@@ -6,6 +6,7 @@ import {
   sortCards,
 } from "./cards";
 import { canBeat, classifyPlay, PLAY_LABEL, type PlayPattern } from "./patterns";
+import { nextPlayerIndex } from "./turn";
 
 export type PlayerId = "human" | "ai-left" | "ai-right";
 export type PlayerRole = "landlord" | "farmer" | null;
@@ -66,6 +67,7 @@ export interface ActivePlay {
 }
 
 export interface RoundState {
+  turnDirection: "counterclockwise";
   roundNumber: number;
   phase: GamePhase;
   players: PlayerState[];
@@ -145,6 +147,7 @@ export function createRound(
   const firstBidderIndex = Math.floor(random() * 3);
 
   return {
+    turnDirection: "counterclockwise",
     roundNumber,
     phase: "bidding",
     players,
@@ -167,6 +170,24 @@ export function createRound(
     winnerTeam: null,
     scoreDeltas: [0, 0, 0],
     spring: null,
+  };
+}
+
+export function migrateTurnDirection(
+  data: SaveData,
+  random = Math.random,
+): { data: SaveData; migrated: boolean } {
+  if (data.round.turnDirection === "counterclockwise") {
+    return { data, migrated: false };
+  }
+  const roundNumber = data.round.roundNumber + (data.round.phase === "finished" ? 1 : 0);
+  return {
+    migrated: true,
+    data: {
+      ...data,
+      round: createRound(random, roundNumber),
+      savedAt: new Date().toISOString(),
+    },
   };
 }
 
@@ -280,7 +301,7 @@ export function placeBid(
     };
   }
 
-  nextRound.currentPlayerIndex = (playerIndex + 1) % 3;
+  nextRound.currentPlayerIndex = nextPlayerIndex(playerIndex);
   return { ...data, round: nextRound, savedAt: new Date().toISOString() };
 }
 
@@ -377,7 +398,7 @@ export function playCards(
     };
   }
 
-  nextRound.currentPlayerIndex = (playerIndex + 1) % 3;
+  nextRound.currentPlayerIndex = nextPlayerIndex(playerIndex);
   return { ...data, round: nextRound, savedAt: new Date().toISOString() };
 }
 
@@ -394,7 +415,7 @@ export function passTurn(data: SaveData, playerIndex: number): SaveData {
   const nextRound = cloneRound(round);
   recordAction(nextRound, playerIndex, { kind: "pass", text: "不出" });
   nextRound.passCount += 1;
-  nextRound.currentPlayerIndex = (playerIndex + 1) % 3;
+  nextRound.currentPlayerIndex = nextPlayerIndex(playerIndex);
 
   if (nextRound.passCount >= 2) {
     nextRound.lastPlay = null;
